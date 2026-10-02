@@ -1,6 +1,6 @@
 # SiteCore — Field Quality & Punch List
 
-Created by Khammina SCMV. Current version: **1.08** (see `CHANGELOG.md`).
+Created by Khammina SCMV. Current version: **1.09** (see `CHANGELOG.md`).
 
 | File / folder | What it is |
 |---|---|

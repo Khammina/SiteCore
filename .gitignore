@@ -17,3 +17,6 @@ android-app/android/.idea/
 # website/download/SiteCore.apk is kept: the public site serves it.
 /*.apk
 /*.aab
+
+# Claude Code worktrees
+.claude/

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SiteCore</title>
-<meta name="application-version" content="1.08">
+<meta name="application-version" content="1.09">
 <meta name="description" content="SiteCore — construction field quality, drawings, punch list, inspections and PDF reporting.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
@@ -456,8 +456,8 @@ html[data-theme=dark] ::-webkit-scrollbar{width:10px;height:10px}html[data-theme
   <div class="proj"><select id="projSel"></select><button class="btn ghost sm" id="newProj"><span data-ic="plus"></span> <span class="lbl" data-t="Project"></span></button></div>
   <div class="top-act">
     <select class="lang-sel" id="langSel" title="Language / ພາສາ / ภาษา"></select>
-    <button class="btn ghost sm" id="pkgExport"><span data-ic="share"></span> <span class="lbl" data-t="Share / Export"></span></button>
-    <button class="btn ghost sm" id="pkgImport"><span data-ic="download"></span> <span class="lbl" data-t="Import"></span></button>
+    <button class="btn ghost sm" id="pkgExport"><span data-ic="save"></span> <span class="lbl" data-t="Save project"></span></button>
+    <button class="btn ghost sm" id="pkgImport"><span data-ic="download"></span> <span class="lbl" data-t="Open project"></span></button>
     <button class="btn ghost sm" id="themeBtn" title="Theme"></button>
     <button class="user-chip" id="userChip"><span data-ic="user"></span> <span id="userName"></span></button>
   </div>
@@ -557,7 +557,7 @@ const ICONS = {
 const ic = (n, sz = 16, cls = '') => `<svg class="i ${cls}" width="${sz}" height="${sz}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 const LOGO_SLOTS = [['ownerLogoId','Owner','client'],['consultantLogoId','Consultant','consultant'],['contractorLogoId','Contractor','contractor']];
 const NAVY = '#0f1f35', ACCENT = '#f59e0b', FONT = 'SCSans', PDF_TOP = 38;
-const APP_VERSION = '1.08';
+const APP_VERSION = '1.09';
 /** Caption printed under a header logo: custom text per project, default = translated role; '' when hidden. */
 const CREDIT = 'SiteCore Created By Khammina SCMV';
 /** Centre footer text on every PDF page: optional custom note + optional SiteCore credit. */
@@ -770,16 +770,27 @@ const CAP = window.Capacitor, IS_NATIVE = !!(CAP && CAP.isNativePlatform && CAP.
 /** Native plugin proxy (needs lib/capacitor.js, bundled in the app build). */
 const capPlugin = n => !CAP ? null : (CAP.Plugins && CAP.Plugins[n]) || (window.capacitorExports ? capacitorExports.registerPlugin(n) : null);
 const blobToB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
-/** Saves a generated file. Browser: normal download. Android app: stored in Documents/SiteCore and offered in the share sheet. */
+/** Writes a blob to the device in 3 MB pieces, so large project files (many drawings / photos) do not run the app out of memory. */
+async function writeNativeFile(Filesystem, blob, path, directory) {
+  const CH = 3 * 1024 * 1024; let r = null; // multiple of 3 → every piece is clean base64
+  for (let o = 0; o === 0 || o < blob.size; o += CH) {
+    const data = await blobToB64(blob.slice(o, o + CH));
+    if (o === 0) r = await Filesystem.writeFile({path, data, directory, recursive:true}); else await Filesystem.appendFile({path, data, directory});
+  }
+  return r;
+}
+/** Saves a generated file. Browser: normal download. Android app: stored in Documents/SiteCore and offered in the share sheet.
+    Resolves with where it was saved (Android) or true (browser), or false if saving failed. */
 async function saveFile(blob, name) {
-  if (!IS_NATIVE) return downloadBlob(blob, name);
-  const Filesystem = capPlugin('Filesystem'), Share = capPlugin('Share');
+  if (!IS_NATIVE) { downloadBlob(blob, name); return true; }
+  const Filesystem = capPlugin('Filesystem'), Share = capPlugin('Share'); let where = true;
   try {
-    const data = await blobToB64(blob);
-    try { await Filesystem.writeFile({path:'SiteCore/' + name, data, directory:'DOCUMENTS', recursive:true}); } catch (e) { console.warn('Documents copy skipped', e); }
-    const r = await Filesystem.writeFile({path:name, data, directory:'CACHE', recursive:true});
-    await Share.share({title:name, url:r.uri, dialogTitle:name});
-  } catch (e) { if (!/cancel/i.test(String(e && e.message))) toast(L('Could not save') + ': ' + (e.message || e), 'err'); }
+    const r = await writeNativeFile(Filesystem, blob, name, 'CACHE');
+    try { await Filesystem.copy({from:name, directory:'CACHE', to:'SiteCore/' + name, toDirectory:'DOCUMENTS'}); where = 'Documents/SiteCore/' + name; }
+    catch (e) { try { await writeNativeFile(Filesystem, blob, 'SiteCore/' + name, 'DOCUMENTS'); where = 'Documents/SiteCore/' + name; } catch (e2) { console.warn('Documents copy skipped', e2); } }
+    try { await Share.share({title:name, url:r.uri, dialogTitle:name}); } catch (e) { if (!/cancel/i.test(String(e && e.message))) console.warn('Share skipped', e); }
+    return where;
+  } catch (e) { toast(L('Could not save') + ': ' + (e.message || e), 'err'); return false; }
 }
 const saveDoc = (doc, name) => saveFile(doc.output('blob'), name);
 function downloadBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
@@ -923,8 +934,8 @@ async function seedDemo() {
 function applyStaticText() {
   document.documentElement.lang = LANG; $('#brandSub').textContent = L('Field Quality · Punch List · Reports');
   $$('[data-t]').forEach(el => el.textContent = L(el.dataset.t)); $$('[data-ic]').forEach(el => el.innerHTML = ic(el.dataset.ic));
-  $('#pkgExport').title = L('Export the whole project (drawings, tags, photos) as a package file to share between office and field');
-  $('#pkgImport').title = L('Import a SiteCore project package'); $('#themeBtn').title = L('Theme'); $('#themeBtn').setAttribute('aria-label', L('Theme')); $('#userChip').title = L('Change your name');
+  $('#pkgExport').title = L('Save the whole project (information, drawings, tags, photos and markup) to one file to keep, back up or share');
+  $('#pkgImport').title = L('Open a saved SiteCore project file'); $('#themeBtn').title = L('Theme'); $('#themeBtn').setAttribute('aria-label', L('Theme')); $('#userChip').title = L('Change your name');
 }
 function renderShell() {
   $('#projSel').innerHTML = S.projects.length ? opt(S.projects.map(p => [p.id, `${p.code ? p.code + ' · ' : ''}${p.name}`]), S.currentProjectId) : `<option>${L('No project')}</option>`;
@@ -969,7 +980,7 @@ function actionSheet(title, items) {
 }
 async function openMoreSheet() {
   const items = NAV.filter(([k]) => !PRIMARY.has(k)).map(([k, icon, t]) => [k, icon, L(t), false, UI.view === k]);
-  items.push(['_share', 'share', L('Share / Export')], ['_import', 'download', L('Import')], ['_lang', 'globe', L('Language') + ': ' + LANGS[LANG]], ['_theme', themeNow() === 'dark' ? 'moon' : 'sun', L('Theme') + ': ' + L(THEMES.find(t => t[0] === getThemePref())[2])]);
+  items.push(['_share', 'save', L('Save project')], ['_import', 'download', L('Open project')], ['_lang', 'globe', L('Language') + ': ' + LANGS[LANG]], ['_theme', themeNow() === 'dark' ? 'moon' : 'sun', L('Theme') + ': ' + L(THEMES.find(t => t[0] === getThemePref())[2])]);
   const k = await actionSheet(L('More'), items); if (!k) return;
   if (k === '_share') return exportPackage(); if (k === '_import') return importAny();
   if (k === '_theme') { const t = await actionSheet(L('Theme'), THEMES.map(([v, icon, lab]) => [v, icon, L(lab), false, v === getThemePref()])); if (t) setThemePref(t); return; }
@@ -2112,27 +2123,50 @@ async function loadDemo() { busy('…'); try { await seedDemo(); save(); UI.layo
 function setLang(l) { LANG = LANGS[l] ? l : 'en'; S.lang = LANG; save(); render(); }
 
 // ---------- package export / import ----------
-/** Builds a self-contained package (all records + files) for one project. */
-async function buildPackage(p) {
+/** One project's records plus the ids of every picture it uses: logos, drawings, tag photos (with markup) and diary photos. */
+function packageOf(p) {
   const nodes = discs(p.id).flatMap(d => [d, ...subtree(d.id)]), ls = discs(p.id).flatMap(d => layoutsUnder(d.id)), lids = new Set(ls.map(l => l.id)), iss = S.issues.filter(i => lids.has(i.layoutId)), diary = S.diary.filter(x => x.projectId === p.id);
-  const fileIds = [...LOGO_SLOTS.map(([k]) => p[k]), ...ls.map(l => l.imageId), ...iss.flatMap(i => i.photoIds), ...diary.flatMap(x => x.photoIds || [])].filter(Boolean), files = {};
-  for (const id of fileIds) { const v = await getFile(id); if (v) files[id] = v; }
-  return {app:'SiteCore', format:2, appVersion:APP_VERSION, exportedAt:new Date().toISOString(), exportedBy:S.user, project:p, nodes, layouts:ls, issues:iss,
-    inspections:S.inspections.filter(x => x.projectId === p.id), diary, logs:S.logs.filter(x => x.projectId === p.id), reports:S.reports.filter(x => x.projectId === p.id), templates:S.templates, files};
+  const photos = [...iss.flatMap(i => i.photoIds || []), ...diary.flatMap(x => x.photoIds || [])].filter(Boolean);
+  const fileIds = [...new Set([...LOGO_SLOTS.map(([k]) => p[k]), ...ls.map(l => l.imageId), ...photos].filter(Boolean))];
+  const head = {app:'SiteCore', format:2, appVersion:APP_VERSION, exportedAt:new Date().toISOString(), exportedBy:S.user, project:p, nodes, layouts:ls, issues:iss,
+    inspections:S.inspections.filter(x => x.projectId === p.id), diary, logs:S.logs.filter(x => x.projectId === p.id), reports:S.reports.filter(x => x.projectId === p.id), templates:S.templates};
+  return {head, fileIds, stats:{drawings:ls.length, tags:iss.length, photos:photos.length}};
+}
+/** Appends a self-contained package (all records + pictures) to `parts`, one picture at a time, so big projects never become one huge string in memory. */
+async function packageParts(p, parts, missing) {
+  const {head, fileIds, stats} = packageOf(p); let first = true;
+  parts.push(JSON.stringify(head).slice(0, -1) + ',"files":{');
+  for (const id of fileIds) {
+    const v = FC.get(id) || await IDB.get('files', id).catch(() => null); // read without caching every picture in memory
+    if (!v) { missing.push(id); continue; }
+    parts.push((first ? '' : ',') + JSON.stringify(id) + ':' + JSON.stringify(v)); first = false;
+  }
+  parts.push('}}'); return stats;
+}
+/** Saves the package file and tells the user what was saved and where. */
+async function savePackageFile(parts, name, stats, missing) {
+  const where = await saveFile(new Blob(parts, {type:'application/json'}), name); if (!where) return false;
+  toast(L('Saved: {d} drawings, {t} tags, {p} photos', {d:stats.drawings, t:stats.tags, p:stats.photos}) + (typeof where === 'string' ? ' — ' + where : ''), 'ok');
+  if (missing.length) toast(L('{n} picture(s) were missing on this device and could not be included', {n:missing.length}), 'err');
+  return true;
 }
 async function exportBackup() {
   if (!S.projects.length) return toast(L('Nothing to export'), 'err'); busy(L('Packaging project…'));
-  try { const packages = []; for (const p of S.projects) packages.push(await buildPackage(p));
-    await saveFile(new Blob([JSON.stringify({app:'SiteCore', format:'backup', appVersion:APP_VERSION, exportedAt:new Date().toISOString(), packages})], {type:'application/json'}), `SiteCore_Backup_${today()}.sitecore.json`);
-    S.lastBackup = Date.now(); save(); toast(L('Backup created ({n} projects)', {n:packages.length}), 'ok'); if (UI.view === 'settings') renderSettings();
+  try {
+    const parts = [JSON.stringify({app:'SiteCore', format:'backup', appVersion:APP_VERSION, exportedAt:new Date().toISOString()}).slice(0, -1) + ',"packages":['], missing = [], stats = {drawings:0, tags:0, photos:0};
+    for (const [k, p] of S.projects.entries()) { if (k) parts.push(','); const s = await packageParts(p, parts, missing); for (const x in stats) stats[x] += s[x]; }
+    parts.push(']}');
+    if (!await savePackageFile(parts, `SiteCore_Backup_${today()}.sitecore.json`, stats, missing)) return;
+    S.lastBackup = Date.now(); save(); toast(L('Backup created ({n} projects)', {n:S.projects.length}), 'ok'); if (UI.view === 'settings') renderSettings();
   } catch (e) { toast(e.message, 'err'); } finally { busy(false); }
 }
+/** Save project: one file with all project information, drawings, tags, photos and markup — open it again with "Open project". */
 async function exportPackage() {
   const p = P(); if (!p) return; busy(L('Packaging project…'));
   try {
-    const pkg = await buildPackage(p);
-    await saveFile(new Blob([JSON.stringify(pkg)], {type:'application/json'}), `${safeName(p.code || p.name)}_${today()}.sitecore.json`);
-    log('Project package exported for sharing'); save(); toast(L('Package exported — send this file to the office / field team'), 'ok');
+    const parts = [], missing = [], stats = await packageParts(p, parts, missing);
+    if (!await savePackageFile(parts, `${safeName(p.code || p.name)}_${today()}.sitecore.json`, stats, missing)) return;
+    log('Project saved to file (all information, drawings and photos)'); save();
   } catch (e) { toast(e.message, 'err'); } finally { busy(false); }
 }
 /** Imports a project package or a full backup (several packages). */
@@ -2171,7 +2205,8 @@ async function importPackage(pkg, forceMode, quiet) {
     S.projects.push(p);
     pkg.nodes.forEach(n => S.nodes.push({...n, id:nid(n.id), projectId:p.id, parentId:n.parentId ? nid(n.parentId) : null}));
     pkg.layouts.forEach(l => { const x = {...l, id:nid(l.id), nodeId:nid(l.nodeId), imageId:nid(l.imageId)}; delete x.floorId; S.layouts.push(x); });
-    pkg.issues.forEach(i => S.issues.push({...i, id:nid(i.id), layoutId:nid(i.layoutId), photoIds:(i.photoIds || []).map(nid)}));
+    const tagsOf = t => t ? Object.fromEntries(Object.entries(t).map(([k, v]) => [nid(k), v])) : t; // Before / After labels are keyed by photo id
+    pkg.issues.forEach(i => S.issues.push({...i, id:nid(i.id), layoutId:nid(i.layoutId), photoIds:(i.photoIds || []).map(nid), photoTags:tagsOf(i.photoTags)}));
     (pkg.inspections || []).forEach(x => S.inspections.push({...x, id:nid(x.id), projectId:p.id, nodeId:nid(x.nodeId), layoutId:nid(x.layoutId), items:x.items.map(it => ({...it, issueId:nid(it.issueId)}))}));
     (pkg.diary || []).forEach(x => S.diary.push({...x, id:nid(x.id), projectId:p.id, photoIds:(x.photoIds || []).map(nid)}));
     (pkg.logs || []).forEach(x => S.logs.push({...x, id:nid(x.id), projectId:p.id}));

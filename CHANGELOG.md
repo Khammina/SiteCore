@@ -1,5 +1,11 @@
 # SiteCore — Changelog
 
+## v1.09 — 2026-10-02
+- **Save project / Open project:** the top-bar and More-menu buttons are now *Save project* and *Open project* (were *Share / Export* and *Import*). Save project writes one `.sitecore.json` file with all project information, drawings, tags, tag photos with markup and Before / After labels, site diary photos, inspections, reports and logos.
+- After saving, the app shows what was saved (drawings, tags, photos) and, on Android, where (`Documents/SiteCore/…`). It warns if any picture was missing on the device.
+- **Fix: large projects failing to save on Android.** The file is now built one picture at a time and written to the phone in 3 MB pieces instead of one huge block, so projects with many drawings and photos no longer run out of memory.
+- **Fix: Before / After photo labels lost** when a project file or backup was opened as a new project (e.g. on another phone). The labels now move with their photos.
+
 ## v1.08 — 2026-10-02
 - **Phone tab bar:** the tabs share the screen width equally and the labels scale with the screen (9–12 px, up to two lines) — fits small and large phones in English, Lao and Thai.
 - **Punch list detail pages:** new *Detail page orientation* (Portrait / Landscape) and *Tags per detail page* 1, 2, 3 or 4 — in Report settings and in the report preview.

@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WWW = os.path.join(ROOT, 'www')
-VERSION = '1.08'
+VERSION = '1.09'
 NAVY, ACCENT = (15, 31, 53), (245, 158, 11)
 
 html = open(os.path.join(ROOT, 'SiteCore.html'), encoding='utf-8').read()
