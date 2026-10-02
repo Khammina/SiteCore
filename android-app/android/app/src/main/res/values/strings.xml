@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SiteCore</string>
+    <string name="title_activity_main">SiteCore</string>
+    <string name="package_name">com.khammina.sitecore</string>
+    <string name="custom_url_scheme">com.khammina.sitecore</string>
+</resources>

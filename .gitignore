@@ -1,0 +1,19 @@
+# Signing secrets — never commit
+*.jks
+*.keystore
+keystore.properties
+local.properties
+
+# Dependencies / build output
+node_modules/
+android-app/android/app/build/
+android-app/android/build/
+android-app/android/capacitor-cordova-android-plugins/build/
+android-app/android/.gradle/
+android-app/android/.kotlin/
+android-app/android/.idea/
+
+# Release binaries (attach to GitHub Releases instead).
+# website/download/SiteCore.apk is kept: the public site serves it.
+/*.apk
+/*.aab

@@ -1,0 +1,17 @@
+{
+  "appId": "com.khammina.sitecore",
+  "appName": "SiteCore",
+  "webDir": "../www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  },
+  "backgroundColor": "#0f1f35",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "initialViewportFitValueHint": "contain"
+    }
+  }
+}

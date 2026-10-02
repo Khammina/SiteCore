@@ -1,0 +1,17 @@
+{
+  "name": "sitecore-android",
+  "version": "1.0.8",
+  "private": true,
+  "description": "SiteCore Android app (Capacitor wrapper around ../www)",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/share": "^8.0.2"
+  }
+}
